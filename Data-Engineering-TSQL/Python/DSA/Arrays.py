@@ -9,5 +9,29 @@ def ContainDuplicate(nums : list[int])-> bool:
             seen.append(nums[i])
     return ret_bool
 
-nums = [1, 2, 3]
-print(f"Contains Duplicates : [{ContainDuplicate(nums)}]")
+def ValidAnagram(s : str, t:str)-> bool:
+    ret_val = True
+    for i in  range(0,len(s)):
+        if(s[i] not in(list(t))):
+            ret_val = False
+            break
+    return ret_val
+
+def TwoSum(nums:list[int], target: int) -> list[int]:
+    ret_vec = []
+    for i in range(0,len(nums)):
+        found = False
+        for j in range(0,len(nums)):
+            if(nums[i] + nums[j] == target and i != j):
+                ret_vec.append(i)
+                ret_vec.append(j)
+                found = True
+                break
+        if(found):
+            break
+    return ret_vec
+
+target = int(input("Enter Target : "))
+vector = [4,5,6]
+indices = TwoSum(vector,target)
+print(f"VECTOR : {indices}")
