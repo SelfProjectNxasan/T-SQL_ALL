@@ -12,7 +12,6 @@ WITH TABLE_DEFINATIONS AS
 		  ,col.IS_NULLABLE 
 		  ,computed_columns_def.definition[computed_columns]
 		  ,CASE WHEN partitioned_table.partition_scheme IS NULL THEN 'NO'  ELSE 'YES' END AS 'partioned'
-		  ,CASE WHEN 
 	FROM INFORMATION_SCHEMA.TABLES t WITH(NOLOCK)
 	LEFT JOIN INFORMATION_SCHEMA.COLUMNS col WITH(NOLOCK) ON col.TABLE_NAME = t.TABLE_NAME 
 		 AND col.TABLE_CATALOG = t.TABLE_CATALOG 
@@ -52,7 +51,16 @@ WITH TABLE_DEFINATIONS AS
 		ON fg.data_space_id = df.data_space_id
 	WHERE t_.name = t.TABLE_NAME 
 	)partitioned_table
-	WHERE t.TABLE_NAME = 'Txn' 
+
+	OUTER APPLY 
+	(
+	    SELECT 
+		   'ALL'col_con.CONSTRAINT_NAME
+		FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS tbl_con
+		INNER JOIN INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE col_con ON tbl_con.TABLE_NAME = col_con.TABLE_NAME
+		WHERE col_con.TABLE_NAME = t.TABLE_NAME AND 
+) tbl_constraints
+WHERE t.TABLE_NAME = 'Txn' 
 )
 SELECT 
 DISTINCT
@@ -60,28 +68,25 @@ DISTINCT
 +'('+
 +STUFF
 (
-(SELECT ' , '+
-t.COLUMN_NAME
-+CASE WHEN LOWER(t.DATA_TYPE) IN('int','bigint','bit','tinyint','smallint','float','money','datetime','date','decimal')
-      THEN ' '+t.DATA_TYPE+' ' + IIF(t.IS_NULLABLE = 'YES',' NULL ',' NOT NULL ')
-	  +IIF(t.COLUMN_DEFAULT IS NOT NULL,' DEFAULT '+t.COLUMN_DEFAULT,' ')
-      WHEN LOWER(t.DATA_TYPE) IN('varchar','nvarchar','varbinary','char','nchar','xml')
-	  THEN ' '+ t.DATA_TYPE + ' ( '+ CAST(IIF(CAST(t.CHARACTER_MAXIMUM_LENGTH AS BIGINT) > 8000,4000,IIF(t.CHARACTER_MAXIMUM_LENGTH = -1,4000,t.CHARACTER_MAXIMUM_LENGTH)) AS VARCHAR(100))+' ) '
-	  +IIF(t.IS_NULLABLE = 'YES',' NULL ',' NOT NULL ')
-	  +IIF(t.COLUMN_DEFAULT IS NOT NULL,' DEFAULT '+t.COLUMN_DEFAULT,' ')
-	  ELSE t.DATA_TYPE END
-FROM TABLE_DEFINATIONS t 
+	(
+		SELECT 
+		' , '+
+		t.COLUMN_NAME
+		+CASE WHEN LOWER(t.DATA_TYPE) IN('int','bigint','bit','tinyint','smallint','float','money','datetime','date','decimal')
+			  THEN ' '+t.DATA_TYPE+' ' + IIF(t.IS_NULLABLE = 'YES',' NULL ',' NOT NULL ')
+			  +IIF(t.COLUMN_DEFAULT IS NOT NULL,' DEFAULT '+t.COLUMN_DEFAULT,' ')
+			  WHEN LOWER(t.DATA_TYPE) IN('varchar','nvarchar','varbinary','char','nchar','xml')
+			  THEN ' '+ t.DATA_TYPE + ' ( '+ CAST(IIF(CAST(t.CHARACTER_MAXIMUM_LENGTH AS BIGINT) > 8000,4000,IIF(t.CHARACTER_MAXIMUM_LENGTH = -1,4000,t.CHARACTER_MAXIMUM_LENGTH)) AS VARCHAR(100))+' ) '
+			  +IIF(t.IS_NULLABLE = 'YES',' NULL ',' NOT NULL ')
+			  +IIF(t.COLUMN_DEFAULT IS NOT NULL,' DEFAULT '+t.COLUMN_DEFAULT,' ')
+			  ELSE t.DATA_TYPE END
+		FROM TABLE_DEFINATIONS t 
 
-FOR XML PATH(''))
+		FOR XML PATH('')
+	)
 ,1
 ,1
 ,''
 )+
 ' ) '
 FROM TABLE_DEFINATIONS t
-
-
-/*
-
-CREATE TABLE, Balancedecimal , BetID bigint  NOT NULL   , ExtraInfo varchar ( 2000 )  NULL   , ExtTxnTypeID smallint  NOT NULL   , Odddecimal , Payoutdecimal , ProviderBetRef varchar ( 100 )  NOT NULL   , ProviderTxnRef varchar ( 100 )  NOT NULL   , Stake decimal , TxnDate datetime  NOT NULL   , TxnID bigint  NOT NULL   , TxnTypeID tinyint  NOT NULL  
-*/
