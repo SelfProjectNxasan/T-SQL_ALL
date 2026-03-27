@@ -51,16 +51,7 @@ WITH TABLE_DEFINATIONS AS
 		ON fg.data_space_id = df.data_space_id
 	WHERE t_.name = t.TABLE_NAME 
 	)partitioned_table
-
-	OUTER APPLY 
-	(
-	    SELECT 
-		   'ALL'col_con.CONSTRAINT_NAME
-		FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS tbl_con
-		INNER JOIN INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE col_con ON tbl_con.TABLE_NAME = col_con.TABLE_NAME
-		WHERE col_con.TABLE_NAME = t.TABLE_NAME AND 
-) tbl_constraints
-WHERE t.TABLE_NAME = 'Txn' 
+--WHERE t.TABLE_NAME = 'Txn' 
 )
 SELECT 
 DISTINCT
@@ -89,4 +80,58 @@ DISTINCT
 ,''
 )+
 ' ) '
+,CASE WHEN t.partioned = 'YES' THEN CLUSTERED_INDEX_CONSTRAINT.INDEX_CONSTRAINT+'[PartitionSchema]' ELSE CLUSTERED_INDEX_CONSTRAINT.INDEX_CONSTRAINT+'[PRIMARY]' END
 FROM TABLE_DEFINATIONS t
+CROSS APPLY
+(
+SELECT 
+ DISTINCT
+ 'CONSTRAINT '+QUOTENAME(tbl_con_.CONSTRAINT_NAME)+CHAR(10)+'PRIMARY KEY'+CHAR(10)+'CLUSTERED'+CHAR(10)+'('+
+STUFF(
+  (
+  SELECT 
+		', '+QUOTENAME(col_con.COLUMN_NAME)+ CHAR(10) + 'ASC'+CHAR(10)
+FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS tbl_con_inner
+INNER JOIN INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE col_con ON tbl_con_inner.TABLE_NAME = col_con.TABLE_NAME 
+AND 
+tbl_con_inner.TABLE_SCHEMA = col_con.TABLE_SCHEMA
+
+WHERE tbl_con_inner.TABLE_NAME = tbl_con_.TABLE_NAME AND tbl_con_inner.CONSTRAINT_TYPE = 'PRIMARY KEY'
+FOR XML PATH('')
+ ),1,1,'')
+ +') WITH ( '+ ' PAD_INDEX = '+CASE WHEN index_outer.is_padded = 0 THEN 'OFF' ELSE 'ON' END +CHAR(10)+' , '+
+  ' STATISTICS_NORECOMPUTE = '+ CASE WHEN index_outer.no_recompute = 0 THEN 'OFF' ELSE 'ON' END +CHAR(10)+', '+
+  'IGNORE_DUP_KEY = '+CASE WHEN index_outer.ignore_dup_key = 0 THEN 'OFF' ELSE 'ON' END +CHAR(10)+', '+' ALLOW_ROW_LOCKS = '+ CHAR(10)
+  +CASE WHEN index_outer.allow_row_locks = 0 THEN 'OFF' ELSE 'ON' END +CHAR(10)+', '+'ALLOW_PAGE_LOCKS = '+CASE WHEN index_outer.allow_page_locks = 0 THEN 'OFF' ELSE 'ON' END+
+  CHAR(10)+', '+'OPTIMIZE_FOR_SEQUENTIAL_KEY = '+CASE WHEN index_outer.optimize_for_sequential_key = 0 THEN 'OFF' ELSE 'ON' END+CHAR(10)+') ON '[INDEX_CONSTRAINT]
+ 
+FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS tbl_con_
+CROSS APPLY
+(
+ SELECT 
+      DISTINCT
+	   index_options.allow_page_locks
+	  ,index_options.allow_row_locks
+	  ,index_options.no_recompute
+	  ,index_options.optimize_for_sequential_key
+	  ,index_options.is_padded
+	  ,index_options.ignore_dup_key
+FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS t_inner_
+INNER JOIN INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE col_con ON t_inner_.TABLE_NAME = col_con.TABLE_NAME
+CROSS APPLY
+( 
+	SELECT
+	  i.allow_page_locks
+	 ,i.allow_row_locks
+	 ,s.no_recompute
+	 ,i.optimize_for_sequential_key
+	 ,i.is_padded
+	 ,i.ignore_dup_key
+	FROM sys.indexes i WITH(NOLOCK) 
+	INNER  JOIN sys.stats s WITH(NOLOCK) ON s.object_id = i.object_id
+	WHERE i.object_id = OBJECT_ID(t_inner_.TABLE_SCHEMA+'.'+t_inner_.TABLE_NAME) AND i.is_primary_key = 1
+)index_options
+WHERE OBJECT_ID(t_inner_.TABLE_SCHEMA+'.'+t_inner_.TABLE_NAME) = OBJECT_ID(tbl_con_.TABLE_SCHEMA+'.'+tbl_con_.TABLE_NAME) 
+) index_outer
+WHERE  tbl_con_.CONSTRAINT_TYPE = 'PRIMARY KEY' AND OBJECT_ID(tbl_con_.TABLE_SCHEMA+'.'+tbl_con_.TABLE_NAME) = OBJECT_ID(T.TABLE_SCHEMA+'.'+t.TABLE_NAME)
+)CLUSTERED_INDEX_CONSTRAINT
