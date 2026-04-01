@@ -32,9 +32,10 @@ def TwoSum(nums:list[int], target: int) -> list[int]:
     return ret_vec
 
 def groupAnagrams(strs: list[str])-> list[list[str]]:
-    grp_str = [[]]
+    grp_str = []
     for i in range(0,len(strs)):
         new_group = []
+        new_group.append(strs[i])
         exists = False
         for k in range(0,len(grp_str)):
             for j in range(0,len(grp_str[k])):
@@ -53,5 +54,28 @@ def groupAnagrams(strs: list[str])-> list[list[str]]:
                 grp_str.append(new_group)
     return grp_str
 
-input_vector = ["act","pots","tops","cat","stop","hat"]
+
+class encoder_string:
+    def __init__(self,strings : list[str] ):
+        strings = self.strings
+
+    def MaxLen(self) -> int:
+        max_str = 0
+        for i in range(0,len(self.strings)):
+            if(len(self.strings[i]) > max_str):
+                max_str = len(self.strings[i])
+        return max_str+1
+    
+    def encode_string(self):
+        str_len = self.MaxLen()
+        output_str = ""
+        for i in range(0,len(self.strings)):
+            diff = str_len - len(self.strings[i])
+            output_str = output_str + self.strings[i] 
+            for k in range(diff):
+                output_str += "#"
+            output_str+= str(diff)
+        return output_str
+
+input_vector = [""]
 print(f"GROUPED ANAGRAMS : {groupAnagrams(input_vector)}")

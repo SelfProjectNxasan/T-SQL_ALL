@@ -1,4 +1,5 @@
 
+
 WITH TABLE_DEFINATIONS AS
 (
 	SELECT
@@ -51,8 +52,8 @@ WITH TABLE_DEFINATIONS AS
 		ON fg.data_space_id = df.data_space_id
 	WHERE t_.name = t.TABLE_NAME 
 	)partitioned_table
---WHERE t.TABLE_NAME = 'Txn' 
-)
+ )
+
 SELECT 
 DISTINCT
 'CREATE TABLE '+QUOTENAME(t.TABLE_SCHEMA)+'.'+QUOTENAME(t.TABLE_NAME)
@@ -61,22 +62,23 @@ DISTINCT
 (
 	(
 		SELECT 
+		DISTINCT
 		' , '+
-		t.COLUMN_NAME
-		+CASE WHEN LOWER(t.DATA_TYPE) IN('int','bigint','bit','tinyint','smallint','float','money','datetime','date','decimal')
-			  THEN ' '+t.DATA_TYPE+' ' + IIF(t.IS_NULLABLE = 'YES',' NULL ',' NOT NULL ')
-			  +IIF(t.COLUMN_DEFAULT IS NOT NULL,' DEFAULT '+t.COLUMN_DEFAULT,' ')
-			  WHEN LOWER(t.DATA_TYPE) IN('varchar','nvarchar','varbinary','char','nchar','xml')
-			  THEN ' '+ t.DATA_TYPE + ' ( '+ CAST(IIF(CAST(t.CHARACTER_MAXIMUM_LENGTH AS BIGINT) > 8000,4000,IIF(t.CHARACTER_MAXIMUM_LENGTH = -1,4000,t.CHARACTER_MAXIMUM_LENGTH)) AS VARCHAR(100))+' ) '
-			  +IIF(t.IS_NULLABLE = 'YES',' NULL ',' NOT NULL ')
-			  +IIF(t.COLUMN_DEFAULT IS NOT NULL,' DEFAULT '+t.COLUMN_DEFAULT,' ')
-			  ELSE t.DATA_TYPE END
-		FROM TABLE_DEFINATIONS t 
-
+		t_inner_concat.COLUMN_NAME
+		+CASE WHEN LOWER(t_inner_concat.DATA_TYPE) IN('int','bigint','bit','tinyint','smallint','float','money','datetime','date','decimal')
+			  THEN ' '+QUOTENAME(t_inner_concat.DATA_TYPE)+' ' + IIF(t_inner_concat.IS_NULLABLE = 'YES',' NULL ',' NOT NULL ')
+			  +IIF(t_inner_concat.COLUMN_DEFAULT IS NOT NULL,' DEFAULT '+t_inner_concat.COLUMN_DEFAULT,' ')
+			  WHEN LOWER(t_inner_concat.DATA_TYPE) IN('varchar','nvarchar','varbinary','char','nchar','xml')
+			  THEN ' '+ QUOTENAME(t_inner_concat.DATA_TYPE) + ' ( '+ CAST(IIF(CAST(t_inner_concat.CHARACTER_MAXIMUM_LENGTH AS BIGINT) > 8000,4000,IIF(t_inner_concat.CHARACTER_MAXIMUM_LENGTH = -1,4000,t_inner_concat.CHARACTER_MAXIMUM_LENGTH)) AS VARCHAR(100))+' ) '
+			  +IIF(t_inner_concat.IS_NULLABLE = 'YES',' NULL ',' NOT NULL ')
+			  +IIF(t_inner_concat.COLUMN_DEFAULT IS NOT NULL,' DEFAULT '+t_inner_concat.COLUMN_DEFAULT,' ')
+			  ELSE t_inner_concat.DATA_TYPE END
+		FROM TABLE_DEFINATIONS t_inner_concat 
+		WHERE t.TABLE_NAME = t_inner_concat.TABLE_NAME AND t.TABLE_SCHEMA = t_inner_concat.TABLE_SCHEMA
 		FOR XML PATH('')
 	)
 ,1
-,1
+,2
 ,''
 )+
 ' ) '
@@ -86,7 +88,11 @@ CROSS APPLY
 (
 SELECT 
  DISTINCT
- 'CONSTRAINT '+QUOTENAME(tbl_con_.CONSTRAINT_NAME)+CHAR(10)+'PRIMARY KEY'+CHAR(10)+'CLUSTERED'+CHAR(10)+'('+
+ 'CONSTRAINT '+QUOTENAME(index_outer.name)+CHAR(10)
+ +
+ ISNULL(RTRIM(LTRIM(SUBSTRING(index_outer.Constraints_Details,1,IIF((CHARINDEX(',',index_outer.Constraints_Details)-1) > 0,(CHARINDEX(',',index_outer.Constraints_Details)-1),LEN(index_outer.Constraints_Details))))),'NULL')
+ +
+CHAR(10)+ISNULL(index_outer.type_desc COLLATE Latin1_General_CI_AS_KS_WS,'NULL')+CHAR(10)+'('+
 STUFF(
   (
   SELECT 
@@ -96,7 +102,7 @@ INNER JOIN INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE col_con ON tbl_con_inner.T
 AND 
 tbl_con_inner.TABLE_SCHEMA = col_con.TABLE_SCHEMA
 
-WHERE tbl_con_inner.TABLE_NAME = tbl_con_.TABLE_NAME AND tbl_con_inner.CONSTRAINT_TYPE = 'PRIMARY KEY'
+WHERE tbl_con_inner.TABLE_NAME = tbl_con_.TABLE_NAME AND tbl_con_inner.CONSTRAINT_TYPE IN('PRIMARY KEY','UNIQUE')
 FOR XML PATH('')
  ),1,1,'')
  +') WITH ( '+ ' PAD_INDEX = '+CASE WHEN index_outer.is_padded = 0 THEN 'OFF' ELSE 'ON' END +CHAR(10)+' , '+
@@ -116,6 +122,9 @@ CROSS APPLY
 	  ,index_options.optimize_for_sequential_key
 	  ,index_options.is_padded
 	  ,index_options.ignore_dup_key
+	  ,index_options.type_desc
+	  ,index_options.name
+	  ,index_options.Constraints_Details
 FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS t_inner_
 INNER JOIN INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE col_con ON t_inner_.TABLE_NAME = col_con.TABLE_NAME
 CROSS APPLY
@@ -127,11 +136,22 @@ CROSS APPLY
 	 ,i.optimize_for_sequential_key
 	 ,i.is_padded
 	 ,i.ignore_dup_key
+	 ,i.type_desc
+	 ,i.name
+	 ,CASE 
+	    WHEN i.type = 1 AND i.is_primary_key = 1 
+	         THEN 'PRIMARY KEY'+','+CAST(i.type_desc AS VARCHAR(100)) 
+	    WHEN i.type = 2 AND i.is_unique_constraint = 1
+	         THEN 'UNIQUE'+','+CAST(i.type AS VARCHAR(100)) 
+	    ELSE 'NULL' 
+	     
+	 END AS 'Constraints_Details'
 	FROM sys.indexes i WITH(NOLOCK) 
 	INNER  JOIN sys.stats s WITH(NOLOCK) ON s.object_id = i.object_id
-	WHERE i.object_id = OBJECT_ID(t_inner_.TABLE_SCHEMA+'.'+t_inner_.TABLE_NAME) AND i.is_primary_key = 1
-)index_options
+	WHERE i.object_id = OBJECT_ID(t_inner_.TABLE_SCHEMA+'.'+t_inner_.TABLE_NAME) AND (i.is_primary_key = 1 OR i.is_unique = 1)
+	)index_options
 WHERE OBJECT_ID(t_inner_.TABLE_SCHEMA+'.'+t_inner_.TABLE_NAME) = OBJECT_ID(tbl_con_.TABLE_SCHEMA+'.'+tbl_con_.TABLE_NAME) 
 ) index_outer
-WHERE  tbl_con_.CONSTRAINT_TYPE = 'PRIMARY KEY' AND OBJECT_ID(tbl_con_.TABLE_SCHEMA+'.'+tbl_con_.TABLE_NAME) = OBJECT_ID(T.TABLE_SCHEMA+'.'+t.TABLE_NAME)
+WHERE  tbl_con_.CONSTRAINT_TYPE IN('PRIMARY KEY','UNIQUE') AND OBJECT_ID(tbl_con_.TABLE_SCHEMA+'.'+tbl_con_.TABLE_NAME) = OBJECT_ID(T.TABLE_SCHEMA+'.'+t.TABLE_NAME)
 )CLUSTERED_INDEX_CONSTRAINT
+WHERE t.TABLE_NAME = 'DimProduct'
