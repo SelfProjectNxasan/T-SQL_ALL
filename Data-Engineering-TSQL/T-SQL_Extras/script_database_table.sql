@@ -83,6 +83,8 @@ DISTINCT
 )+
 ' ) '
 ,CASE WHEN t.partioned = 'YES' THEN CLUSTERED_INDEX_CONSTRAINT.INDEX_CONSTRAINT+'[PartitionSchema]' ELSE CLUSTERED_INDEX_CONSTRAINT.INDEX_CONSTRAINT+'[PRIMARY]' END
+,FOREIGN_KEY_CONSTRAINT.FK_CONSTRAINT
+,OBJECT_ID(t.TABLE_SCHEMA+'.'+t.TABLE_NAME)
 FROM TABLE_DEFINATIONS t
 CROSS APPLY
 (
@@ -154,4 +156,31 @@ WHERE OBJECT_ID(t_inner_.TABLE_SCHEMA+'.'+t_inner_.TABLE_NAME) = OBJECT_ID(tbl_c
 ) index_outer
 WHERE  tbl_con_.CONSTRAINT_TYPE IN('PRIMARY KEY','UNIQUE') AND OBJECT_ID(tbl_con_.TABLE_SCHEMA+'.'+tbl_con_.TABLE_NAME) = OBJECT_ID(T.TABLE_SCHEMA+'.'+t.TABLE_NAME)
 )CLUSTERED_INDEX_CONSTRAINT
+CROSS APPLY (
+SELECT 
+   STUFF(
+   (SELECT
+  
+  ','+'CONSTRAINT '+ISNULL(OBJECT_NAME(fk.object_id),'NULL')+' FOREIGN KEY ('+(SELECT c.name FROM sys.all_columns c WHERE c.column_id = fkc.referenced_column_id AND c.object_id = fkc.referenced_object_id)+')
+   REFERENCES '+QUOTENAME((SELECT so.name FROM sys.all_objects o INNER JOIN sys.tables to_ ON to_.object_id = o.object_id INNER JOIN sys.schemas so ON so.schema_id = to_.schema_id WHERE o.object_id = fk.referenced_object_id))+'.'+QUOTENAME(OBJECT_NAME(fk.referenced_object_id))+'
+   ('+(SELECT c.name FROM sys.all_columns c WHERE c.column_id = fkc.referenced_column_id AND c.object_id = fkc.referenced_object_id)+')
+   
+   ON DELETE '+(fk.delete_referential_action_desc COLLATE Latin1_General_CI_AS_KS_WS)+', ON UPDATE '+(fk.update_referential_action_desc COLLATE Latin1_General_CI_AS_KS_WS)+''
+FROM sys.foreign_keys fk 
+INNER JOIN sys.foreign_key_columns fkc ON fkc.constraint_object_id = fk.object_id
+where fk.parent_object_id = OBJECT_ID(t.TABLE_SCHEMA+'.'+t.TABLE_NAME)
+FOR XML PATH('')
+   )
+,1,1,'')[FK_CONSTRAINT]
+
+)FOREIGN_KEY_CONSTRAINT
 WHERE t.TABLE_NAME = 'DimProduct'
+
+
+
+
+
+
+
+
+
