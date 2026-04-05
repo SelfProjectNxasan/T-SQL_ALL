@@ -1,3 +1,4 @@
+
 def ContainDuplicate(nums : list[int])-> bool:
     seen = []
     ret_bool = False
@@ -76,6 +77,7 @@ class encoder_string:
                 output_str += "#"
             output_str+= str(diff)
         return output_str
+
 
 input_vector = [""]
 print(f"GROUPED ANAGRAMS : {groupAnagrams(input_vector)}")
