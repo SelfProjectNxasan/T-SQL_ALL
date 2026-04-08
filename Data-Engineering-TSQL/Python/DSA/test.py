@@ -26,6 +26,13 @@ class StringEmcoder:
             index = index + 1
         return result_string
 
+
+class Decode_String:
+    def __init__(self,encoded_str:str,filling_character : str,MaxLen:int):
+        self.encoded_str = encoded_str
+        self.filling_character = filling_character
+        self.MaxLen = MaxLen
+        
 encoder = StringEmcoder(["apple","banana","cherry","dragonfruit","elderberry"],"*")
 encoded_string = encoder.Encode_()
 print(f"ENCODED STRING : [{encoded_string}]")

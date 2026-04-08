@@ -1,4 +1,22 @@
-WITH TABLE_DEFINATIONS AS
+DECLARE 
+    @RED_SERVER_SRC          VARCHAR(MAX)
+   ,@YELLOW_SERVER_SRC       VARCHAR(MAX)
+   ,@RED_DATABASE_DEST       VARCHAR(MAX)
+   ,@YELLOW_DATABASE_DEST    VARCHAR(MAX)
+   ,@RED_DIRECTORY_PATH      NVARCHAR(MAX)
+   ,@YELLOW_DIRECTORY_PATH   NVARCHAR(MAX)
+   ,@RED_DATABASE_SRC        VARCHAR(MAX)
+   ,@YELLOW_DATABASE_SRC     VARCHAR(MAX)
+   ,@CreateYellowProcFound   BIT
+   ,@create_splits           BIT
+   ,@split_range             VARCHAR(3)
+   ,@lnk_srv_creeted         BIT 
+   ,@sql_command             NVARCHAR(MAX)
+   ,@linked_server_prd       VARCHAR(MAX)     =  'SQL Server'
+
+IF EXISTS(SELECT * FROM 'tempdb..#fk_constraints') DROP TABLE 
+
+;WITH TABLE_DEFINATIONS AS
 (
 	SELECT
 	  DISTINCT 
@@ -202,21 +220,7 @@ SELECT
 FROM refined_table_def t
 WHERE OBJECT_NAME(t.OBJECT_ID) = 'DimProduct'
 
-DECLARE 
-    @RED_SERVER_SRC          VARCHAR(MAX)
-   ,@YELLOW_SERVER_SRC       VARCHAR(MAX)
-   ,@RED_DATABASE_DEST       VARCHAR(MAX)
-   ,@YELLOW_DATABASE_DEST    VARCHAR(MAX)
-   ,@RED_DIRECTORY_PATH      NVARCHAR(MAX)
-   ,@YELLOW_DIRECTORY_PATH   NVARCHAR(MAX)
-   ,@RED_DATABASE_SRC        VARCHAR(MAX)
-   ,@YELLOW_DATABASE_SRC     VARCHAR(MAX)
-   ,@CreateYellowProcFound   BIT
-   ,@create_splits           BIT
-   ,@split_range             VARCHAR(3)
-   ,@lnk_srv_creeted         BIT 
-   ,@sql_command             NVARCHAR(MAX)
-   ,@linked_server_prd       VARCHAR(MAX)     =  'SQL Server'
+
 IF NOT EXISTS(SELECT * FROM master.sys.servers)
  BEGIN TRY
         SET @sql_command = 'EXEC master.dbo.sp_addlinkedserver @server = N'''+@RED_DATABASE_SRC+''', @srvproduct = N'''+@linked_server_prd+''''
